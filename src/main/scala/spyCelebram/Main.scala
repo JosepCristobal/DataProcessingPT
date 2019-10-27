@@ -168,7 +168,7 @@ object Main {
     //Este sería el filtro para recuperar los mensajes que contienen las palabras prohibidas
     val resultadoPalProh = resultadoIot3.filter(col("word_0").isin(arrPalPro:_*)).toDF()
 
-  //Hata este punto funciona el filtro de las palabras prohibidas, pero no hemos conseguido los top10. El filtro se hace sobre el DataFrame
+  //Hata este punto funciona el filtro de las palabras prohibidas, pero no hemos conseguido los top10. El filtro se hace sobre toda el DataFrame
 
     val query = resultadoPalProh.writeStream
       .outputMode("complete")
