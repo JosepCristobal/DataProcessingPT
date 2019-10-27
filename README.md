@@ -94,7 +94,7 @@ El proyecto final, está situado en el pakage spyCelebram.
 
 ## Muestra de resultados obtenidos
 		
-![Captura pantalla de resultados](varis/Captura de pantalla 2019-10-27 a las 22.07.22.png)
+![Captura pantalla de resultados](https://github.com/JosepCristobal/DataProcessingPT/blob/master/varis/Captura%20de%20pantalla%202019-10-27%20a%20las%2022.07.22.png)
 		
 		
 
