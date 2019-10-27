@@ -109,10 +109,22 @@ object Kafka03 {
 
     val InputDSFiltrado_0 = messagesJoinSelect.select($"message")
 
+    //En este punto deberíamos llamar a una función que pasándole el mensaje "message", que teóricamente viene encriptado, nos lo
+    //devolviera desencriptado y legible.
+    //-----------------------------------LLamada------------------------
+
+    // A partir de este punto vienen las dudas y los problemas que hay que resolver
+    //Si utilizo el DataFrame resultado de aplicar el intervalo de tiempo, no soy capaz de hacer un conteo de las palabras.
+    //Todas las acciones sobre el dataset resultante, que no han sido pocas, me salta un error y no me deja seguir adelante.
     val conteoPalabrasCadaXseg = InputDSFiltrado
       .groupBy(window($"time_Stamp","20 seconds","15 seconds"),$"message").count().orderBy($"window")
 
     val misPalabras = conteoPalabrasCadaXseg.select($"message", $"window")
+
+    //En este punto separamos las palabras de cada mensaje y desestimamos las que su length en menor de 3
+    //aplicamos este criterio para omitir las preposiciones las conjunciones y los articulos.
+    //En el Split aplicamos la expresion regular \\W+ para filtrar por letras, omitiendo otro tipo de elementos.
+    //Para hacer un buen conteo y una posterior búsqueda en la lista negra, transformaremos todas las letras en minúsculas.
 
     val palabras = misPalabras.map(frase => (frase.toString())).flatMap(palabras2 => palabras2.split("\\W+"))
       .map(palabra => palabra.toLowerCase).filter(tipoPal => tipoPal.length > 3).toDF("word")
@@ -120,13 +132,20 @@ object Kafka03 {
     val palabras_0 = InputDSFiltrado_0.map(frase => (frase.toString())).flatMap(palabras2 => palabras2.split("\\W+"))
       .map(palabra => palabra.toLowerCase).filter(tipoPal => tipoPal.length > 3).toDF("word_0")
 
-    //val contadorPalabras = palabras.map(palabra0 => (palabra0,1)).toDF("word","conteo") //.reduceByKey((a,b) => a + b)
+    //Creamos una vista temporal y aplicamos una query SQL directamente para hacer el recuento de palabras.
+    //No nos deja aplicar el TOP10, nos dice que es incompatible con Streaming.
+    //Esta Query no la hemos podido aplicar al resultado del DataFrame resultante de intervalo de tiempo.
+    //Nos da el error "Multiple streaming aggregations are not supported with streaming DataFrames/Datasets;;"
+    //Removiendo y buscando en todos los rincones de internet, no he sabido dar con la solución.
 
+    //Si prosigo con el DataFrame sin pasar por el intervalo de tiempo, me funciona correctamente, haciendo un recuento de palabras
+    //y mostrandolo de forma correcta y ordenada descendentemente.
      palabras_0.createOrReplaceTempView("resProvisional")
      val text = "SELECT word_0, count(*) as contador FROM resProvisional GROUP BY word_0 ORDER BY contador DESC"
-     //val text = "SELECT word FROM resProvisional ORDER BY word"
+
      val resultadoIot3 = spark.sql(text)
 
+    
     //val contadorPalabrasOrdenadoSelect = palabras.select($"word").groupBy($"word").count()
     // val df = contadorPalabras.groupBy(contadorPalabras("veces")).agg(count("*").as("columnCount")).orderBy("columnCount")
    // val contadorPalabrasOrdenadoSelect = palabras.groupBy($"word").count
@@ -158,7 +177,7 @@ object Kafka03 {
     //Si queremos suscribirnos a más topicos lo haremos
     //.option("subsribeType","spyCelebram01,spyCelebram01")
 
-    val query = palabras.writeStream
+    val query = resultadoIot3.writeStream
       .outputMode("complete")
       .format("console")
       .option("checkpointLocation","checkpoint")
