@@ -1,3 +1,3 @@
 package spyCelebram.model
 
-case class BlackList()
+case class BlackList(PalabraPr:String)

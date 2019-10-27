@@ -1,13 +1,13 @@
 package BancoDePruebas
 
-import java.sql.Timestamp
+
 
 import org.apache.log4j._
 import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 import org.apache.spark.sql.{DataFrame, SparkSession,Row}
 import org.apache.spark.sql.functions.window
 import org.apache.spark.sql.types.StructType
-import spyCelebram.model.{Iot, Messages, MessagesProc, Users}
+import spyCelebram.model.{Iot, Messages, MessagesProc, Users, BlackList}
 import org.apache.spark.sql.functions._
 import java.sql.Timestamp
 
@@ -65,6 +65,16 @@ object Kafka03 {
       Iot(4,true,"West"),
       Iot(5,true,"North-West")
     ).toDS
+
+    //Creamos un DataSet a través de una secuencia que pertenece a los Mensajes no autorizados BlackList.
+    //Se decide hacerlo de esta forma por la poca cantidad de registros.
+    val listaNegra = Seq(
+      BlackList("libero"),
+      BlackList("volutpat"),
+      BlackList("terrismo"),
+      BlackList("pelotas")
+    ).toDS()
+
 
 
     //Hacemos una búsqueda para determinar que IoTs están encendidos
@@ -139,45 +149,28 @@ object Kafka03 {
     //Removiendo y buscando en todos los rincones de internet, no he sabido dar con la solución.
 
     //Si prosigo con el DataFrame sin pasar por el intervalo de tiempo, me funciona correctamente, haciendo un recuento de palabras
-    //y mostrandolo de forma correcta y ordenada descendentemente.
+    //y mostrandolo de forma correcta y ordenada descendentemente y respetando el intervalo de tiempo del anterior.
      palabras_0.createOrReplaceTempView("resProvisional")
      val text = "SELECT word_0, count(*) as contador FROM resProvisional GROUP BY word_0 ORDER BY contador DESC"
 
-     val resultadoIot3 = spark.sql(text)
-
-    
-    //val contadorPalabrasOrdenadoSelect = palabras.select($"word").groupBy($"word").count()
-    // val df = contadorPalabras.groupBy(contadorPalabras("veces")).agg(count("*").as("columnCount")).orderBy("columnCount")
-   // val contadorPalabrasOrdenadoSelect = palabras.groupBy($"word").count
-    //val contadorPalab = palabras.countByValue()
-    //val contadorPalabrasOrdenado = contadorPalabras.map(par => par.swap).sortByKey(false).toDF()
-    /* val windowedCount = stockDs
-       .withWatermark("time", "20000 milliseconds")
-       .groupBy(
-         window($"time", "10 seconds"),
-         $"symbol"
-       )
-       .agg(sum("value"), count($"symbol"))*/
+     val resultadoIot3 = spark.sql(text).toDF()
 
 
 
-    // messagesJoinIoTs.
-    //
-    /*
-    //ventana de tiempo
-    val conteoPalabrasCada10seg = palabras
-      .groupBy(window($"timestamp","10 seconds","5 seconds"),$"palabra")
-      .count()
-      .orderBy("window") */
-
-    // data.show(20)
-    //val InputDSFiltrado = data.select($"message").filter($"user_id" > 0)
+    //Hacemos una búsqueda para recoger las palabras prohibidas
+    val palabrasProhibidas = listaNegra.select($"PalabraPr").map(row=>row.getAs("PalabraPr").toString).collect.mkString(",")
+    println(s"Las palabras prohibidas son: ${palabrasProhibidas}")
 
 
-    //Si queremos suscribirnos a más topicos lo haremos
-    //.option("subsribeType","spyCelebram01,spyCelebram01")
+    //Transformamos un string en un array
+    var arrPalPro = palabrasProhibidas.split(",").map(palfin => "'"+ palfin + "'")
 
-    val query = resultadoIot3.writeStream
+
+    //Este sería el filtro para recuperar los mensajes que contienen las palabras prohibidas
+    val resultadoPalProh = resultadoIot3.filter(col("word_0").isin(arrPalPro:_*)).toDF()
+
+
+    val query = resultadoPalProh.writeStream
       .outputMode("complete")
       .format("console")
       .option("checkpointLocation","checkpoint")
